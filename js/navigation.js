@@ -92,7 +92,9 @@ class NavigationManager {
                 window.batchManager?.refresh();
                 break;
             case 'manage-students':
-                window.studentManager?.refresh();
+                if (window.studentManager) {
+                    window.studentManager.refresh();
+                }
                 break;
             case 'pay-fee':
                 window.feePaymentManager?.refresh();
