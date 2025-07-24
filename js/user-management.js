@@ -167,13 +167,78 @@ class UserManagementManager {
             } else {
                 Utils.showToast(result.message, 'error');
             }
-        }).join('');
+        });
     }
 }
 
 // Global user management manager instance
 window.userManagementManager = new UserManagementManager();
 
+class UserManagementManager2 {
+    constructor() {
+        this.currentUser = null;
+        this.init();
+    }
+
+    init() {
+        this.currentUser = JSON.parse(localStorage.getItem('currentUser'));
+        this.refresh();
+        this.bindEvents();
+    }
+
+    bindEvents() {
+        const createForm = document.getElementById('create-user-form');
+        if (createForm) {
+            createForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.createUser();
+            });
+        }
+    }
+
+    refresh() {
+        this.displayUsers();
+    }
+
+    displayUsers() {
+        const users = JSON.parse(localStorage.getItem('users') || '[]');
+        const usersList = document.getElementById('users-list');
+        
+        if (!usersList) return;
+
+        if (users.length === 0) {
+            usersList.innerHTML = '<p>No users found</p>';
+            return;
+        }
+
+        usersList.innerHTML = users.map(user => `
+            <div class="user-card">
+                <h4>${user.username}</h4>
+                <p>Role: ${user.role}</p>
+                <p>Created: ${new Date(user.createdAt).toLocaleDateString()}</p>
+                <div class="user-actions">
+                    ${this.canManageUser(user) ? `
+                        <button onclick="userManagementManager.editUser('${user.id}')" class="btn btn-edit">Edit</button>
+                        <button onclick="userManagementManager.deleteUser('${user.id}')" class="btn btn-delete">Delete</button>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    canManageUser(user) {
+        if (!this.currentUser) return false;
+        if (this.currentUser.id === user.id) return false; // Can't manage self
+        
+        // Role hierarchy: Developer > Admin > Manager
+        const roleHierarchy = { 'Manager': 1, 'Admin': 2, 'Developer': 3 };
+        return roleHierarchy[this.currentUser.role] > roleHierarchy[user.role];
+    }
+
+    createUser() {
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value.trim();
+        const role = document.getElementById('role').value;
 
         if (!username || !password || !role) {
             this.showMessage('Please fill all fields', 'error');
