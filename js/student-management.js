@@ -99,6 +99,13 @@ class StudentManagementManager {
             return;
         }
 
+        // Get enrolled courses with starting months
+        const enrolledCourses = this.getEnrolledCourses();
+        
+        if (enrolledCourses.length === 0) {
+            Utils.showToast('Please select at least one course', 'error');
+            return;
+        }
         const studentData = {
             name: Utils.sanitizeInput(name),
             institutionId,
@@ -106,13 +113,15 @@ class StudentManagementManager {
             phone: Utils.sanitizeInput(phone),
             guardianName: Utils.sanitizeInput(guardianName),
             guardianPhone: Utils.sanitizeInput(guardianPhone),
-            batchId
+            batchId,
+            enrolledCourses
         };
 
         const student = window.storageManager.addStudent(studentData);
         if (student) {
             Utils.showToast(`Student added successfully with ID: ${student.studentId}`, 'success');
             document.getElementById('addStudentForm').reset();
+            this.clearCourseSelection();
             this.loadStudents();
         }
     }
@@ -173,6 +182,91 @@ class StudentManagementManager {
             batches.map(batch => 
                 `<option value="${batch.id}">${batch.name}</option>`
             ).join('');
+        
+        // Add event listener for batch change
+        batchSelect.addEventListener('change', () => {
+            this.updateCourseSelection();
+        });
+    }
+
+    updateCourseSelection() {
+        const batchId = document.getElementById('studentBatch').value;
+        const courseSelectionDiv = document.getElementById('courseSelection');
+        
+        if (!courseSelectionDiv) return;
+        
+        if (!batchId) {
+            courseSelectionDiv.innerHTML = '<p>Please select a batch first</p>';
+            return;
+        }
+        
+        const courses = window.storageManager.getCoursesByBatch(batchId);
+        
+        if (courses.length === 0) {
+            courseSelectionDiv.innerHTML = '<p>No courses available for this batch</p>';
+            return;
+        }
+        
+        courseSelectionDiv.innerHTML = courses.map(course => {
+            const months = window.storageManager.getMonthsByCourse(course.id);
+            const monthOptions = months.map(month => 
+                `<option value="${month.id}">${month.name}</option>`
+            ).join('');
+            
+            return `
+                <div class="course-enrollment-item">
+                    <div class="course-checkbox">
+                        <input type="checkbox" id="course_${course.id}" value="${course.id}" onchange="studentManager.toggleCourseSelection('${course.id}')">
+                        <label for="course_${course.id}">${course.name}</label>
+                    </div>
+                    <div class="starting-month-select" id="startingMonth_${course.id}" style="display: none;">
+                        <label for="startMonth_${course.id}">Starting Month:</label>
+                        <select id="startMonth_${course.id}">
+                            <option value="">Select Starting Month</option>
+                            ${monthOptions}
+                        </select>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    toggleCourseSelection(courseId) {
+        const checkbox = document.getElementById(`course_${courseId}`);
+        const startingMonthDiv = document.getElementById(`startingMonth_${courseId}`);
+        
+        if (checkbox.checked) {
+            startingMonthDiv.style.display = 'block';
+        } else {
+            startingMonthDiv.style.display = 'none';
+            document.getElementById(`startMonth_${courseId}`).value = '';
+        }
+    }
+
+    getEnrolledCourses() {
+        const enrolledCourses = [];
+        const courseCheckboxes = document.querySelectorAll('#courseSelection input[type="checkbox"]:checked');
+        
+        courseCheckboxes.forEach(checkbox => {
+            const courseId = checkbox.value;
+            const startingMonthId = document.getElementById(`startMonth_${courseId}`).value;
+            
+            if (startingMonthId) {
+                enrolledCourses.push({
+                    courseId,
+                    startingMonthId
+                });
+            }
+        });
+        
+        return enrolledCourses;
+    }
+
+    clearCourseSelection() {
+        const courseSelectionDiv = document.getElementById('courseSelection');
+        if (courseSelectionDiv) {
+            courseSelectionDiv.innerHTML = '<p>Please select a batch first</p>';
+        }
     }
 
     loadStudents() {

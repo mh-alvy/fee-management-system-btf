@@ -40,11 +40,6 @@ class NavigationManager {
             });
         });
 
-        // Theme toggle
-        document.getElementById('themeToggle').addEventListener('click', () => {
-            this.toggleTheme();
-        });
-
         // Logout
         document.getElementById('logoutBtn').addEventListener('click', () => {
             this.logout();

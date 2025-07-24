@@ -240,6 +240,7 @@ class StorageManager {
             id: this.generateId('student'),
             studentId: this.generateStudentId(),
             ...studentData,
+            enrolledCourses: studentData.enrolledCourses || [],
             createdAt: new Date().toISOString(),
             createdBy: window.authManager.getCurrentUser()?.username
         };

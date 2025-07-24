@@ -39,13 +39,22 @@ class FeePaymentManager {
     }
 
     findStudent() {
-        const studentId = document.getElementById('searchStudentId').value.trim();
-        if (!studentId) {
-            Utils.showToast('Please enter a student ID', 'error');
+        const searchValue = document.getElementById('searchStudentId').value.trim();
+        if (!searchValue) {
+            Utils.showToast('Please enter a student ID or name', 'error');
             return;
         }
 
-        const student = window.storageManager.getStudentByStudentId(studentId);
+        // Search by student ID first, then by name
+        let student = window.storageManager.getStudentByStudentId(searchValue);
+        
+        if (!student) {
+            // Search by name
+            const students = window.storageManager.getStudents();
+            student = students.find(s => 
+                s.name.toLowerCase().includes(searchValue.toLowerCase())
+            );
+        }
 
         if (!student) {
             Utils.showToast('Student not found', 'error');
@@ -115,16 +124,25 @@ class FeePaymentManager {
         
         if (!courseSelection || !monthSelection) return;
 
-        // Get courses for this batch
-        const batchCourses = window.storageManager.getCoursesByBatch(student.batchId);
+        // Get enrolled courses for this student
+        const enrolledCourses = student.enrolledCourses || [];
+        
+        if (enrolledCourses.length === 0) {
+            courseSelection.innerHTML = '<p>No courses enrolled for this student</p>';
+            monthSelection.innerHTML = '<p>No courses available</p>';
+            return;
+        }
         
         // Display courses
-        courseSelection.innerHTML = batchCourses.map(course => `
-            <div class="checkbox-item">
-                <input type="checkbox" id="course_${course.id}" value="${course.id}" onchange="feePaymentManager.updateMonthSelection()">
-                <label for="course_${course.id}">${course.name}</label>
-            </div>
-        `).join('');
+        courseSelection.innerHTML = enrolledCourses.map(enrollment => {
+            const course = window.storageManager.getCourseById(enrollment.courseId);
+            return `
+                <div class="checkbox-item">
+                    <input type="checkbox" id="course_${course.id}" value="${course.id}" onchange="feePaymentManager.updateMonthSelection()">
+                    <label for="course_${course.id}">${course.name}</label>
+                </div>
+            `;
+        }).join('');
 
         // Clear month selection initially
         monthSelection.innerHTML = '<p>Please select courses first</p>';
@@ -150,11 +168,27 @@ class FeePaymentManager {
             return;
         }
 
-        // Get all months for selected courses
+        // Get months for selected courses, starting from the enrolled starting month
         let allMonths = [];
         selectedCourses.forEach(courseId => {
-            const months = window.storageManager.getMonthsByCourse(courseId);
-            months.forEach(month => {
+            // Find the enrollment info for this course
+            const enrollment = this.currentStudent.enrolledCourses.find(e => e.courseId === courseId);
+            const startingMonthId = enrollment?.startingMonthId;
+            
+            const allCourseMonths = window.storageManager.getMonthsByCourse(courseId);
+            const course = window.storageManager.getCourseById(courseId);
+            
+            // Find starting month index
+            let startIndex = 0;
+            if (startingMonthId) {
+                startIndex = allCourseMonths.findIndex(m => m.id === startingMonthId);
+                if (startIndex === -1) startIndex = 0;
+            }
+            
+            // Only include months from starting month onwards
+            const availableMonths = allCourseMonths.slice(startIndex);
+            
+            availableMonths.forEach(month => {
                 const course = window.storageManager.getCourseById(month.courseId);
                 allMonths.push({
                     ...month,

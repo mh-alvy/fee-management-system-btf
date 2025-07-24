@@ -580,3 +580,56 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Course Enrollment Styles */
+.course-selection {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    background: var(--bg-primary);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.course-enrollment-item {
+    margin-bottom: 16px;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+}
+
+.course-checkbox {
+    margin-bottom: 8px;
+}
+
+.course-checkbox input[type="checkbox"] {
+    width: auto;
+    margin-right: 8px;
+}
+
+.course-checkbox label {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.starting-month-select {
+    margin-left: 24px;
+    padding-top: 8px;
+}
+
+.starting-month-select label {
+    display: block;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.starting-month-select select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
