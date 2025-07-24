@@ -2,10 +2,13 @@
 class NavigationManager {
     constructor() {
         this.currentPage = 'dashboard';
+        this.isInitialized = false;
         this.init();
     }
 
     init() {
+        if (this.isInitialized) return;
+        this.isInitialized = true;
         this.bindEvents();
         this.setupRoleBasedNavigation();
     }

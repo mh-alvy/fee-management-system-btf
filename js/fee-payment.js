@@ -1,21 +1,24 @@
 class FeePaymentManager {
     constructor() {
+        this.isInitialized = false;
         this.init();
     }
 
     init() {
+        if (this.isInitialized) return;
+        this.isInitialized = true;
         this.bindEvents();
-        this.loadStudentData();
+        this.refresh();
     }
 
     bindEvents() {
-        const searchForm = document.getElementById('student-search-form');
-        const paymentForm = document.getElementById('payment-form');
+        const searchForm = document.getElementById('findStudentForm');
+        const paymentForm = document.getElementById('feePaymentForm');
         
         if (searchForm) {
             searchForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                this.searchStudent();
+                this.findStudent();
             });
         }
 
@@ -26,194 +29,264 @@ class FeePaymentManager {
             });
         }
 
-        // Bind course selection change
-        const courseSelect = document.getElementById('course-select');
-        if (courseSelect) {
-            courseSelect.addEventListener('change', () => {
-                this.updateMonthOptions();
-                this.calculateAmount();
-            });
-        }
-
-        // Bind month selection change
-        const monthSelect = document.getElementById('month-select');
-        if (monthSelect) {
-            monthSelect.addEventListener('change', () => {
-                this.calculateAmount();
+        // Bind paid amount change
+        const paidAmountInput = document.getElementById('paidAmount');
+        if (paidAmountInput) {
+            paidAmountInput.addEventListener('input', () => {
+                this.calculateDueAmount();
             });
         }
     }
 
-    searchStudent() {
-        const studentId = document.getElementById('student-id-search').value.trim();
+    findStudent() {
+        const studentId = document.getElementById('searchStudentId').value.trim();
         if (!studentId) {
-            this.showMessage('Please enter a student ID', 'error');
+            Utils.showToast('Please enter a student ID', 'error');
             return;
         }
 
-        const students = JSON.parse(localStorage.getItem('students') || '[]');
-        const student = students.find(s => s.id === studentId);
+        const student = window.storageManager.getStudentByStudentId(studentId);
 
         if (!student) {
-            this.showMessage('Student not found', 'error');
+            Utils.showToast('Student not found', 'error');
             this.hideStudentInfo();
             return;
         }
 
         this.displayStudentInfo(student);
-        this.loadCourseOptions(student.batch);
+        this.loadPaymentOptions(student);
     }
 
     displayStudentInfo(student) {
-        const studentInfoDiv = document.getElementById('student-info');
-        if (!studentInfoDiv) return;
+        const studentInfoDisplay = document.getElementById('studentInfoDisplay');
+        const studentPaymentInfo = document.getElementById('studentPaymentInfo');
+        
+        if (!studentInfoDisplay || !studentPaymentInfo) return;
 
-        studentInfoDiv.innerHTML = `
-            <div class="student-details">
-                <h3>Student Information</h3>
-                <p><strong>Name:</strong> ${student.name}</p>
-                <p><strong>ID:</strong> ${student.id}</p>
-                <p><strong>Institution:</strong> ${student.institution}</p>
-                <p><strong>Batch:</strong> ${student.batch}</p>
-                <p><strong>Phone:</strong> ${student.phone}</p>
-                <p><strong>Guardian:</strong> ${student.guardianName} (${student.guardianPhone})</p>
+        const institution = window.storageManager.getInstitutionById(student.institutionId);
+        const batch = window.storageManager.getBatchById(student.batchId);
+
+        studentInfoDisplay.innerHTML = `
+            <div class="detail-item">
+                <div class="detail-label">Name</div>
+                <div class="detail-value">${student.name}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Student ID</div>
+                <div class="detail-value">${student.studentId}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Institution</div>
+                <div class="detail-value">${institution?.name || 'Unknown'}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Batch</div>
+                <div class="detail-value">${batch?.name || 'Unknown'}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Phone</div>
+                <div class="detail-value">${student.phone}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Guardian</div>
+                <div class="detail-value">${student.guardianName} (${student.guardianPhone})</div>
             </div>
         `;
-        studentInfoDiv.style.display = 'block';
 
-        const paymentSection = document.getElementById('payment-section');
-        if (paymentSection) {
-            paymentSection.style.display = 'block';
-        }
+        studentPaymentInfo.style.display = 'block';
+        
+        // Store current student for payment processing
+        this.currentStudent = student;
     }
 
     hideStudentInfo() {
-        const studentInfoDiv = document.getElementById('student-info');
-        const paymentSection = document.getElementById('payment-section');
+        const studentPaymentInfo = document.getElementById('studentPaymentInfo');
         
-        if (studentInfoDiv) studentInfoDiv.style.display = 'none';
-        if (paymentSection) paymentSection.style.display = 'none';
+        if (studentPaymentInfo) {
+            studentPaymentInfo.style.display = 'none';
+        }
+        
+        this.currentStudent = null;
     }
 
-    loadCourseOptions(batchName) {
-        const courses = JSON.parse(localStorage.getItem('courses') || '[]');
-        const batchCourses = courses.filter(course => course.batch === batchName);
+    loadPaymentOptions(student) {
+        const courseSelection = document.getElementById('courseSelection');
+        const monthSelection = document.getElementById('monthSelection');
         
-        const courseSelect = document.getElementById('course-select');
-        if (!courseSelect) return;
+        if (!courseSelection || !monthSelection) return;
 
-        courseSelect.innerHTML = '<option value="">Select Course</option>';
-        batchCourses.forEach(course => {
-            const option = document.createElement('option');
-            option.value = course.name;
-            option.textContent = course.name;
-            courseSelect.appendChild(option);
-        });
+        // Get courses for this batch
+        const batchCourses = window.storageManager.getCoursesByBatch(student.batchId);
+        
+        // Display courses
+        courseSelection.innerHTML = batchCourses.map(course => `
+            <div class="checkbox-item">
+                <input type="checkbox" id="course_${course.id}" value="${course.id}" onchange="feePaymentManager.updateMonthSelection()">
+                <label for="course_${course.id}">${course.name}</label>
+            </div>
+        `).join('');
+
+        // Clear month selection initially
+        monthSelection.innerHTML = '<p>Please select courses first</p>';
+        
+        // Reset amounts
+        document.getElementById('totalAmount').value = '0';
+        document.getElementById('paidAmount').value = '';
+        document.getElementById('dueAmount').value = '0';
     }
 
-    updateMonthOptions() {
-        const courseSelect = document.getElementById('course-select');
-        const monthSelect = document.getElementById('month-select');
+    updateMonthSelection() {
+        const courseSelection = document.getElementById('courseSelection');
+        const monthSelection = document.getElementById('monthSelection');
         
-        if (!courseSelect || !monthSelect) return;
+        if (!courseSelection || !monthSelection) return;
 
-        const selectedCourse = courseSelect.value;
-        if (!selectedCourse) {
-            monthSelect.innerHTML = '<option value="">Select Month</option>';
+        const selectedCourses = Array.from(courseSelection.querySelectorAll('input[type="checkbox"]:checked'))
+            .map(checkbox => checkbox.value);
+
+        if (selectedCourses.length === 0) {
+            monthSelection.innerHTML = '<p>Please select courses first</p>';
+            this.calculateTotalAmount();
             return;
         }
 
-        const months = JSON.parse(localStorage.getItem('months') || '[]');
-        const courseMonths = months.filter(month => month.course === selectedCourse);
-        
-        // Get student ID to check paid months
-        const studentId = document.getElementById('student-id-search').value;
-        const payments = JSON.parse(localStorage.getItem('payments') || '[]');
-        const paidMonths = payments
-            .filter(payment => payment.studentId === studentId && payment.course === selectedCourse)
-            .map(payment => payment.month);
-
-        monthSelect.innerHTML = '<option value="">Select Month</option>';
-        courseMonths.forEach(month => {
-            if (!paidMonths.includes(month.name)) {
-                const option = document.createElement('option');
-                option.value = month.name;
-                option.textContent = month.name;
-                option.dataset.amount = month.payment;
-                monthSelect.appendChild(option);
-            }
+        // Get all months for selected courses
+        let allMonths = [];
+        selectedCourses.forEach(courseId => {
+            const months = window.storageManager.getMonthsByCourse(courseId);
+            months.forEach(month => {
+                const course = window.storageManager.getCourseById(month.courseId);
+                allMonths.push({
+                    ...month,
+                    courseName: course?.name || 'Unknown'
+                });
+            });
         });
+        
+        // Display months with checkboxes
+        monthSelection.innerHTML = allMonths.map(month => `
+            <div class="checkbox-item">
+                <input type="checkbox" id="month_${month.id}" value="${month.id}" data-amount="${month.payment}" onchange="feePaymentManager.calculateTotalAmount()">
+                <label for="month_${month.id}">
+                    <span>${month.name} (${month.courseName})</span>
+                    <span class="course-fee">${Utils.formatCurrency(month.payment)}</span>
+                </label>
+            </div>
+        `).join('');
+        
+        this.calculateTotalAmount();
     }
 
-    calculateAmount() {
-        const monthSelect = document.getElementById('month-select');
-        const amountInput = document.getElementById('amount');
+    calculateTotalAmount() {
+        const monthSelection = document.getElementById('monthSelection');
+        const totalAmountInput = document.getElementById('totalAmount');
         
-        if (!monthSelect || !amountInput) return;
+        if (!monthSelection || !totalAmountInput) return;
 
-        const selectedOptions = Array.from(monthSelect.selectedOptions);
+        const selectedMonths = Array.from(monthSelection.querySelectorAll('input[type="checkbox"]:checked'));
         let totalAmount = 0;
 
-        selectedOptions.forEach(option => {
-            totalAmount += parseFloat(option.dataset.amount || 0);
+        selectedMonths.forEach(checkbox => {
+            totalAmount += parseFloat(checkbox.dataset.amount || 0);
         });
 
-        amountInput.value = totalAmount;
+        totalAmountInput.value = totalAmount;
+        this.calculateDueAmount();
+    }
+
+    calculateDueAmount() {
+        const totalAmount = parseFloat(document.getElementById('totalAmount').value || 0);
+        const paidAmount = parseFloat(document.getElementById('paidAmount').value || 0);
+        const dueAmountInput = document.getElementById('dueAmount');
+        
+        if (dueAmountInput) {
+            dueAmountInput.value = Math.max(0, totalAmount - paidAmount);
+        }
     }
 
     processPayment() {
-        const studentId = document.getElementById('student-id-search').value;
-        const course = document.getElementById('course-select').value;
-        const monthSelect = document.getElementById('month-select');
-        const amount = document.getElementById('amount').value;
-        const paid = document.getElementById('paid').value;
-        const reference = document.getElementById('reference').value;
-        const receivedBy = document.getElementById('received-by').value;
-
-        if (!studentId || !course || !monthSelect.value || !amount || !paid || !receivedBy) {
-            this.showMessage('Please fill all required fields', 'error');
+        if (!this.currentStudent) {
+            Utils.showToast('Please find a student first', 'error');
             return;
         }
 
-        const selectedMonths = Array.from(monthSelect.selectedOptions).map(option => option.value);
-        const due = parseFloat(amount) - parseFloat(paid);
+        const courseSelection = document.getElementById('courseSelection');
+        const monthSelection = document.getElementById('monthSelection');
+        const totalAmount = parseFloat(document.getElementById('totalAmount').value || 0);
+        const paidAmount = parseFloat(document.getElementById('paidAmount').value || 0);
+        const reference = document.getElementById('reference').value.trim();
+        const receivedBy = document.getElementById('receivedBy').value.trim();
+
+        if (!courseSelection || !monthSelection) return;
+
+        const selectedCourses = Array.from(courseSelection.querySelectorAll('input[type="checkbox"]:checked'))
+            .map(checkbox => checkbox.value);
+        const selectedMonths = Array.from(monthSelection.querySelectorAll('input[type="checkbox"]:checked'))
+            .map(checkbox => checkbox.value);
+
+        if (selectedCourses.length === 0 || selectedMonths.length === 0) {
+            Utils.showToast('Please select courses and months', 'error');
+            return;
+        }
+
+        if (totalAmount <= 0) {
+            Utils.showToast('Total amount must be greater than 0', 'error');
+            return;
+        }
+
+        if (paidAmount <= 0) {
+            Utils.showToast('Paid amount must be greater than 0', 'error');
+            return;
+        }
+
+        if (!receivedBy) {
+            Utils.showToast('Please enter who received the payment', 'error');
+            return;
+        }
+
+        const dueAmount = Math.max(0, totalAmount - paidAmount);
 
         const payment = {
-            id: 'PAY' + Date.now(),
-            studentId,
-            course,
+            studentId: this.currentStudent.id,
+            studentName: this.currentStudent.name,
+            studentStudentId: this.currentStudent.studentId,
+            courses: selectedCourses,
             months: selectedMonths,
-            amount: parseFloat(amount),
-            paid: parseFloat(paid),
-            due,
+            totalAmount,
+            paidAmount,
+            dueAmount,
             reference,
-            receivedBy,
-            date: new Date().toISOString().split('T')[0],
-            timestamp: new Date().toISOString()
+            receivedBy
         };
 
-        // Save payment for each month
-        const payments = JSON.parse(localStorage.getItem('payments') || '[]');
-        selectedMonths.forEach(month => {
-            payments.push({
-                ...payment,
-                month,
-                id: 'PAY' + Date.now() + '_' + month
-            });
-        });
-
-        localStorage.setItem('payments', JSON.stringify(payments));
-
-        this.showMessage('Payment processed successfully!', 'success');
-        this.generateInvoice(payment);
-        this.resetPaymentForm();
+        const savedPayment = window.storageManager.addPayment(payment);
+        
+        if (savedPayment) {
+            Utils.showToast('Payment processed successfully!', 'success');
+            
+            // Generate and show invoice
+            window.invoiceManager.generateInvoice(savedPayment);
+            
+            // Reset form
+            this.resetPaymentForm();
+        }
     }
 
-    generateInvoice(payment) {
-        const students = JSON.parse(localStorage.getItem('students') || '[]');
-        const student = students.find(s => s.id === payment.studentId);
-        
-        if (!student) return;
+    resetPaymentForm() {
+        document.getElementById('findStudentForm').reset();
+        document.getElementById('feePaymentForm').reset();
+        this.hideStudentInfo();
+    }
+
+    refresh() {
+        // Reset form and hide student info
+        this.resetPaymentForm();
+    }
+}
+
+// Global fee payment manager instance
+window.feePaymentManager = new FeePaymentManager();
+
 
         const invoiceData = {
             invoiceId: payment.id,

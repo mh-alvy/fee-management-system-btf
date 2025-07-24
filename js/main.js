@@ -17,36 +17,48 @@ class App {
         
         // Initialize theme toggle
         this.initializeThemeToggle();
+        
+        // Initialize logout
+        this.initializeLogout();
     }
 
     initializeTheme() {
-        const savedTheme = localStorage.getItem('theme') || 'light';
+        const savedTheme = localStorage.getItem('btf_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
         
-        const themeToggle = document.getElementById('theme-toggle');
+        const themeToggle = document.getElementById('themeToggle');
         if (themeToggle) {
-            themeToggle.textContent = savedTheme === 'light' ? '🌙' : '☀️';
+            themeToggle.textContent = savedTheme === 'light' ? '🌓' : '☀️';
         }
     }
 
     initializeThemeToggle() {
-        const themeToggle = document.getElementById('theme-toggle');
+        const themeToggle = document.getElementById('themeToggle');
         if (themeToggle) {
             themeToggle.addEventListener('click', () => {
                 const currentTheme = document.documentElement.getAttribute('data-theme');
                 const newTheme = currentTheme === 'light' ? 'dark' : 'light';
                 
                 document.documentElement.setAttribute('data-theme', newTheme);
-                localStorage.setItem('theme', newTheme);
-                themeToggle.textContent = newTheme === 'light' ? '🌙' : '☀️';
+                localStorage.setItem('btf_theme', newTheme);
+                themeToggle.textContent = newTheme === 'light' ? '🌓' : '☀️';
+            });
+        }
+    }
+
+    initializeLogout() {
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                this.logout();
             });
         }
     }
 
     checkUserSession() {
-        const savedUser = localStorage.getItem('currentUser');
-        if (savedUser) {
-            this.currentUser = JSON.parse(savedUser);
+        const currentUser = window.authManager.getCurrentUser();
+        if (currentUser) {
+            this.currentUser = currentUser;
             this.showMainApp();
         } else {
             this.showLoginModal();
@@ -54,7 +66,7 @@ class App {
     }
 
     initializeLoginForm() {
-        const loginForm = document.getElementById('login-form');
+        const loginForm = document.getElementById('loginForm');
         if (loginForm) {
             loginForm.addEventListener('submit', (e) => {
                 e.preventDefault();
@@ -64,108 +76,75 @@ class App {
     }
 
     handleLogin() {
-        const username = document.getElementById('username')?.value;
-        const password = document.getElementById('password')?.value;
+        const username = document.getElementById('username')?.value.trim();
+        const password = document.getElementById('password')?.value.trim();
 
         if (!username || !password) {
-            this.showError('Please enter both username and password');
+            Utils.showToast('Please enter both username and password', 'error');
             return;
         }
 
-        // Get users from storage
-        const users = JSON.parse(localStorage.getItem('users') || '[]');
-        const user = users.find(u => u.username === username && u.password === password);
-
-        if (user) {
-            this.currentUser = user;
-            localStorage.setItem('currentUser', JSON.stringify(user));
+        const result = window.authManager.login(username, password);
+        
+        if (result.success) {
+            this.currentUser = result.user;
+            Utils.showToast(`Welcome back, ${result.user.username}!`, 'success');
             this.showMainApp();
+            
+            // Clear form
+            document.getElementById('loginForm').reset();
         } else {
-            this.showError('Invalid username or password');
-        }
-    }
-
-    showError(message) {
-        const errorDiv = document.getElementById('login-error');
-        if (errorDiv) {
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
-            setTimeout(() => {
-                errorDiv.style.display = 'none';
-            }, 3000);
+            Utils.showToast(result.message || 'Invalid username or password', 'error');
         }
     }
 
     showLoginModal() {
-        const loginModal = document.getElementById('login-modal');
-        const mainApp = document.getElementById('main-app');
+        const loginModal = document.getElementById('loginModal');
+        const mainApp = document.getElementById('app');
         
-        if (loginModal) loginModal.style.display = 'flex';
-        if (mainApp) mainApp.style.display = 'none';
+        if (loginModal) {
+            loginModal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+        if (mainApp) {
+            mainApp.style.display = 'none';
+        }
     }
 
     showMainApp() {
-        const loginModal = document.getElementById('login-modal');
-        const mainApp = document.getElementById('main-app');
+        const loginModal = document.getElementById('loginModal');
+        const mainApp = document.getElementById('app');
         
-        if (loginModal) loginModal.style.display = 'none';
-        if (mainApp) mainApp.style.display = 'block';
-
-        // Initialize navigation and other components
-        if (window.NavigationManager) {
-            new NavigationManager(this.currentUser);
+        if (loginModal) {
+            loginModal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+        if (mainApp) {
+            mainApp.style.display = 'flex';
         }
 
-        // Initialize dashboard
-        if (window.DashboardManager) {
-            new DashboardManager();
+        // Initialize navigation manager
+        if (!window.navigationManager.isInitialized) {
+            window.navigationManager.hideLoginModal();
+        }
+
+        // Refresh dashboard
+        if (window.dashboardManager) {
+            window.dashboardManager.refresh();
         }
     }
 
     logout() {
-        this.currentUser = null;
-        localStorage.removeItem('currentUser');
-        this.showLoginModal();
-        
-        // Clear any active managers
-        const mainContent = document.getElementById('main-content');
-        if (mainContent) {
-            mainContent.innerHTML = '<div class="welcome-message"><h2>Welcome to Break The Fear</h2><p>Please select an option from the menu.</p></div>';
-        }
-    }
-}
-
-// Initialize default users if none exist
-function initializeDefaultUsers() {
-    const existingUsers = localStorage.getItem('users');
-    if (!existingUsers) {
-        const defaultUsers = [
-            {
-                id: 'admin-001',
-                username: 'admin',
-                password: 'admin123',
-                role: 'admin',
-                name: 'System Administrator',
-                createdAt: new Date().toISOString()
-            },
-            {
-                id: 'dev-001',
-                username: 'developer',
-                password: 'dev123',
-                role: 'developer',
-                name: 'System Developer',
-                createdAt: new Date().toISOString()
-            },
-            {
-                id: 'mgr-001',
-                username: 'manager',
-                password: 'mgr123',
-                role: 'manager',
-                name: 'System Manager',
-                createdAt: new Date().toISOString()
-            }
-        ];
-        localStorage.setItem('users', JSON.stringify(defaultUsers));
+        Utils.confirm('Are you sure you want to logout?', () => {
+            window.authManager.logout();
+            this.currentUser = null;
+            this.showLoginModal();
+            
+            // Reset navigation to dashboard
+            window.navigationManager.navigateTo('dashboard');
+            
+            Utils.showToast('Logged out successfully', 'success');
+        });
     }
 }
 
@@ -178,6 +157,5 @@ window.logout = function() {
 
 // Initialize application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    initializeDefaultUsers();
     window.app = new App();
 });

@@ -1,71 +1,179 @@
 class UserManagementManager {
     constructor() {
-        this.currentUser = JSON.parse(localStorage.getItem('currentUser'));
+        this.isInitialized = false;
         this.init();
     }
 
     init() {
+        if (this.isInitialized) return;
+        this.isInitialized = true;
         this.bindEvents();
         this.refresh();
     }
 
     bindEvents() {
-        const createUserForm = document.getElementById('create-user-form');
-        if (createUserForm) {
-            createUserForm.addEventListener('submit', (e) => {
+        const addUserForm = document.getElementById('addUserForm');
+        if (addUserForm) {
+            addUserForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                this.createUser();
+                this.addUser();
             });
         }
     }
 
     refresh() {
-        this.loadUsers();
+        this.displayUsers();
     }
 
-    loadUsers() {
-        const users = JSON.parse(localStorage.getItem('users') || '[]');
-        const usersList = document.getElementById('users-list');
+    displayUsers() {
+        const users = window.authManager.getAllUsers();
+        const usersList = document.getElementById('usersList');
         
         if (!usersList) return;
 
         if (users.length === 0) {
-            usersList.innerHTML = '<p class="no-data">No users found</p>';
+            usersList.innerHTML = '<p class="text-center">No users found</p>';
             return;
         }
 
-        usersList.innerHTML = users.map(user => {
-            const canEdit = this.currentUser && (
-                this.currentUser.role === 'Developer' || 
-                (this.currentUser.role === 'Admin' && user.role !== 'Developer') ||
-                this.currentUser.id === user.id
-            );
-
-            return `
-                <div class="user-card">
-                    <div class="user-info">
-                        <h3>${user.username}</h3>
-                        <p><strong>Role:</strong> ${user.role}</p>
-                        <p><strong>Created:</strong> ${new Date(user.createdAt).toLocaleDateString()}</p>
-                        ${user.lastLogin ? `<p><strong>Last Login:</strong> ${new Date(user.lastLogin).toLocaleDateString()}</p>` : ''}
-                    </div>
-                    <div class="user-actions">
-                        ${canEdit ? `
-                            <button onclick="userManagementManager.editUser('${user.id}')" class="btn btn-secondary">Edit</button>
-                            ${this.currentUser.role === 'Developer' && user.id !== this.currentUser.id ? 
-                                `<button onclick="userManagementManager.deleteUser('${user.id}')" class="btn btn-danger">Delete</button>` : ''
-                            }
-                        ` : ''}
-                    </div>
+        const currentUser = window.authManager.getCurrentUser();
+        
+        usersList.innerHTML = users.map(user => `
+            <div class="user-item">
+                <div class="user-info">
+                    <h4>${user.username}</h4>
+                    <span class="user-role ${user.role.toLowerCase()}">${user.role}</span>
                 </div>
-            `;
-        }).join('');
+                <div class="user-actions">
+                    ${this.canManageUser(currentUser, user) ? `
+                        <button class="btn btn-small btn-outline" onclick="userManagementManager.editUser('${user.id}')">Edit</button>
+                        <button class="btn btn-small btn-danger" onclick="userManagementManager.deleteUser('${user.id}')">Delete</button>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('');
     }
 
-    createUser() {
-        const username = document.getElementById('username').value.trim();
-        const password = document.getElementById('password').value.trim();
-        const role = document.getElementById('role').value;
+    canManageUser(currentUser, targetUser) {
+        if (!currentUser || currentUser.role !== 'developer') return false;
+        if (currentUser.id === targetUser.id) return false; // Can't manage self
+        return true;
+    }
+
+    addUser() {
+        const username = document.getElementById('newUsername').value.trim();
+        const password = document.getElementById('newPassword').value.trim();
+        const role = document.getElementById('newUserRole').value;
+
+        if (!username || !password || !role) {
+            Utils.showToast('Please fill all fields', 'error');
+            return;
+        }
+
+        const result = window.authManager.addUser(username, password, role);
+        
+        if (result.success) {
+            Utils.showToast('User created successfully!', 'success');
+            document.getElementById('addUserForm').reset();
+            this.refresh();
+        } else {
+            Utils.showToast(result.message, 'error');
+        }
+    }
+
+    editUser(userId) {
+        const users = window.authManager.getAllUsers();
+        const user = users.find(u => u.id === userId);
+        
+        if (!user) {
+            Utils.showToast('User not found', 'error');
+            return;
+        }
+
+        const editForm = `
+            <form id="editUserForm">
+                <div class="form-group">
+                    <label for="editUsername">Username</label>
+                    <input type="text" id="editUsername" value="${user.username}" required>
+                </div>
+                <div class="form-group">
+                    <label for="editPassword">New Password (leave blank to keep current)</label>
+                    <input type="password" id="editPassword">
+                </div>
+                <div class="form-group">
+                    <label for="editRole">Role</label>
+                    <select id="editRole" required>
+                        <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+                        <option value="manager" ${user.role === 'manager' ? 'selected' : ''}>Manager</option>
+                        <option value="developer" ${user.role === 'developer' ? 'selected' : ''}>Developer</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary">Update User</button>
+                    <button type="button" class="btn btn-outline" onclick="navigationManager.closeModal(document.getElementById('editModal'))">Cancel</button>
+                </div>
+            </form>
+        `;
+
+        window.navigationManager.showModal('editModal', 'Edit User', editForm);
+
+        document.getElementById('editUserForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.updateUser(userId);
+        });
+    }
+
+    updateUser(userId) {
+        const username = document.getElementById('editUsername').value.trim();
+        const password = document.getElementById('editPassword').value.trim();
+        const role = document.getElementById('editRole').value;
+
+        if (!username || !role) {
+            Utils.showToast('Please fill all required fields', 'error');
+            return;
+        }
+
+        const updates = { username, role };
+        if (password) {
+            updates.password = password;
+        }
+
+        const result = window.authManager.updateUser(userId, updates);
+        
+        if (result.success) {
+            Utils.showToast('User updated successfully!', 'success');
+            window.navigationManager.closeModal(document.getElementById('editModal'));
+            this.refresh();
+        } else {
+            Utils.showToast(result.message, 'error');
+        }
+    }
+
+    deleteUser(userId) {
+        const users = window.authManager.getAllUsers();
+        const user = users.find(u => u.id === userId);
+        
+        if (!user) {
+            Utils.showToast('User not found', 'error');
+            return;
+        }
+
+        Utils.confirm(`Are you sure you want to delete user "${user.username}"?`, () => {
+            const result = window.authManager.deleteUser(userId);
+            
+            if (result.success) {
+                Utils.showToast('User deleted successfully!', 'success');
+                this.refresh();
+            } else {
+                Utils.showToast(result.message, 'error');
+            }
+        }).join('');
+    }
+}
+
+// Global user management manager instance
+window.userManagementManager = new UserManagementManager();
+
 
         if (!username || !password || !role) {
             this.showMessage('Please fill all fields', 'error');
