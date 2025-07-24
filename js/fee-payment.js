@@ -282,12 +282,10 @@ class FeePaymentManager {
         // Reset form and hide student info
         this.resetPaymentForm();
     }
-}
 
-// Global fee payment manager instance
-window.feePaymentManager = new FeePaymentManager();
-
-
+    generateInvoice(payment) {
+        const student = window.storageManager.getStudentById(payment.studentId);
+        
         const invoiceData = {
             invoiceId: payment.id,
             student,
@@ -335,14 +333,6 @@ window.feePaymentManager = new FeePaymentManager();
         window.URL.revokeObjectURL(url);
     }
 
-    resetPaymentForm() {
-        const form = document.getElementById('payment-form');
-        if (form) {
-            form.reset();
-        }
-        this.hideStudentInfo();
-    }
-
     loadStudentData() {
         // Initialize any required data loading
     }
@@ -366,6 +356,9 @@ window.feePaymentManager = new FeePaymentManager();
         }, 3000);
     }
 }
+
+// Global fee payment manager instance
+window.feePaymentManager = new FeePaymentManager();
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
