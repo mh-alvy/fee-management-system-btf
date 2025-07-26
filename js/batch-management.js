@@ -95,26 +95,28 @@ class BatchManager {
 
     createMonth() {
         const monthName = Utils.sanitizeInput(document.getElementById('monthName').value);
+        const monthNumber = parseInt(document.getElementById('monthNumber').value);
         const courseId = document.getElementById('monthCourse').value;
         const payment = parseFloat(document.getElementById('coursePayment').value);
 
-        if (!monthName || !courseId || !payment || payment <= 0) {
+        if (!monthName || !monthNumber || !courseId || !payment || payment <= 0) {
             Utils.showToast('Please fill all fields with valid values', 'error');
             return;
         }
 
         // Check if month already exists for this course
         const existingMonth = window.storageManager.getMonths().find(m => 
-            m.name.toLowerCase() === monthName.toLowerCase() && m.courseId === courseId
+            (m.name.toLowerCase() === monthName.toLowerCase() || m.monthNumber === monthNumber) && m.courseId === courseId
         );
 
         if (existingMonth) {
-            Utils.showToast('Month with this name already exists for the selected course', 'error');
+            Utils.showToast('Month with this name or number already exists for the selected course', 'error');
             return;
         }
 
         const month = window.storageManager.addMonth({ 
             name: monthName, 
+            monthNumber,
             courseId, 
             payment 
         });
@@ -185,6 +187,7 @@ class BatchManager {
                         <div class="entity-details">
                             Course: ${course?.name || 'Unknown'} | 
                             Batch: ${batch?.name || 'Unknown'} | 
+                            Month #: ${month.monthNumber || 'N/A'} |
                             Fee: ${Utils.formatCurrency(month.payment)}
                         </div>
                     </div>

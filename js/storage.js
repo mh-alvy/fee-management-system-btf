@@ -159,6 +159,8 @@ class StorageManager {
         const month = {
             id: this.generateId('month'),
             ...monthData,
+            monthNumber: monthData.monthNumber || 1,
+            monthName: monthData.monthName || monthData.name,
             createdAt: new Date().toISOString(),
             createdBy: window.authManager.getCurrentUser()?.username
         };

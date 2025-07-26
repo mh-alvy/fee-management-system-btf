@@ -19,6 +19,11 @@ class ReportsManager {
         document.getElementById('reportType').addEventListener('change', () => {
             this.updateDateFields();
         });
+
+        // Course Change for Month Filter
+        document.getElementById('reportCourse').addEventListener('change', () => {
+            this.updateMonthFilter();
+        });
     }
 
     updateDateFields() {
@@ -55,10 +60,49 @@ class ReportsManager {
             }).join('');
     }
 
+    updateMonthFilter() {
+        const reportType = document.getElementById('reportType').value;
+        const selectedCourse = document.getElementById('reportCourse').value;
+        
+        // Only show month filter when report type is 'month' and a course is selected
+        let monthFilterHtml = '';
+        if (reportType === 'month' && selectedCourse) {
+            const months = window.storageManager.getMonthsByCourse(selectedCourse)
+                .sort((a, b) => (a.monthNumber || 0) - (b.monthNumber || 0));
+            
+            if (months.length > 0) {
+                monthFilterHtml = `
+                    <div class="form-group">
+                        <label for="reportMonth">Select Month</label>
+                        <select id="reportMonth">
+                            <option value="">All Months</option>
+                            ${months.map(month => 
+                                `<option value="${month.id}">${month.name} (${Utils.formatCurrency(month.payment)})</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+        }
+        
+        // Update the filter group to include month filter
+        const filterGroup = document.querySelector('.filter-group');
+        const existingMonthFilter = document.getElementById('reportMonth');
+        if (existingMonthFilter) {
+            existingMonthFilter.closest('.form-group').remove();
+        }
+        
+        if (monthFilterHtml) {
+            const generateButton = document.getElementById('generateReport');
+            generateButton.insertAdjacentHTML('beforebegin', monthFilterHtml);
+        }
+    }
+
     generateReport() {
         const reportType = document.getElementById('reportType').value;
         const reportDate = document.getElementById('reportDate').value;
         const reportCourse = document.getElementById('reportCourse').value;
+        const reportMonth = document.getElementById('reportMonth')?.value;
 
         let filteredPayments = window.storageManager.getPayments();
 
@@ -77,6 +121,10 @@ class ReportsManager {
             case 'month':
                 if (reportDate) {
                     filteredPayments = this.filterByMonth(filteredPayments, new Date(reportDate));
+                }
+                // Additional filter by specific month if selected
+                if (reportMonth) {
+                    filteredPayments = this.filterBySpecificMonth(filteredPayments, reportMonth);
                 }
                 break;
             case 'course':
@@ -115,6 +163,12 @@ class ReportsManager {
     filterByCourse(payments, courseId) {
         return payments.filter(payment => 
             payment.courses.includes(courseId)
+        );
+    }
+
+    filterBySpecificMonth(payments, monthId) {
+        return payments.filter(payment => 
+            payment.months.includes(monthId)
         );
     }
 

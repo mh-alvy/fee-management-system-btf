@@ -154,8 +154,8 @@ class FeePaymentManager {
     }
 
     updateMonthSelection() {
-        const courseSelection = document.getElementById('courseSelection');
-        const monthSelection = document.getElementById('monthSelection');
+        const courseSelection = document.querySelector('#studentPaymentInfo #courseSelection');
+        const monthSelection = document.querySelector('#studentPaymentInfo #monthSelection');
         
         if (!courseSelection || !monthSelection) return;
 
@@ -168,20 +168,24 @@ class FeePaymentManager {
             return;
         }
 
-        // Get months for selected courses, starting from the enrolled starting month
+        // Get months for selected courses, only from the enrolled starting month onwards
         let allMonths = [];
         selectedCourses.forEach(courseId => {
             // Find the enrollment info for this course
             const enrollment = this.currentStudent.enrolledCourses.find(e => e.courseId === courseId);
             const startingMonthId = enrollment?.startingMonthId;
             
-            const allCourseMonths = window.storageManager.getMonthsByCourse(courseId);
+            const allCourseMonths = window.storageManager.getMonthsByCourse(courseId)
+                .sort((a, b) => (a.monthNumber || 0) - (b.monthNumber || 0));
             const course = window.storageManager.getCourseById(courseId);
             
-            // Find starting month index
+            // Find starting month index by monthNumber
             let startIndex = 0;
             if (startingMonthId) {
-                startIndex = allCourseMonths.findIndex(m => m.id === startingMonthId);
+                const startingMonth = window.storageManager.getMonthById(startingMonthId);
+                if (startingMonth) {
+                    startIndex = allCourseMonths.findIndex(m => (m.monthNumber || 0) >= (startingMonth.monthNumber || 0));
+                }
                 if (startIndex === -1) startIndex = 0;
             }
             
@@ -189,7 +193,6 @@ class FeePaymentManager {
             const availableMonths = allCourseMonths.slice(startIndex);
             
             availableMonths.forEach(month => {
-                const course = window.storageManager.getCourseById(month.courseId);
                 allMonths.push({
                     ...month,
                     courseName: course?.name || 'Unknown'
@@ -212,7 +215,7 @@ class FeePaymentManager {
     }
 
     calculateTotalAmount() {
-        const monthSelection = document.getElementById('monthSelection');
+        const monthSelection = document.querySelector('#studentPaymentInfo #monthSelection');
         const totalAmountInput = document.getElementById('totalAmount');
         
         if (!monthSelection || !totalAmountInput) return;
@@ -244,8 +247,8 @@ class FeePaymentManager {
             return;
         }
 
-        const courseSelection = document.getElementById('courseSelection');
-        const monthSelection = document.getElementById('monthSelection');
+        const courseSelection = document.querySelector('#studentPaymentInfo #courseSelection');
+        const monthSelection = document.querySelector('#studentPaymentInfo #monthSelection');
         const totalAmount = parseFloat(document.getElementById('totalAmount').value || 0);
         const paidAmount = parseFloat(document.getElementById('paidAmount').value || 0);
         const reference = document.getElementById('reference').value.trim();
