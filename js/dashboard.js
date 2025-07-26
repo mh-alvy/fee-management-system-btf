@@ -52,14 +52,26 @@ class DashboardManager {
             const studentPayments = payments.filter(p => p.studentId === student.id);
             const totalPaid = studentPayments.reduce((sum, p) => sum + p.paidAmount, 0);
 
-            // Calculate total due for student
-            const batchCourses = window.storageManager.getCoursesByBatch(student.batchId);
+            // Calculate total due for student based on enrolled courses and starting months
             let totalDue = 0;
 
-            batchCourses.forEach(course => {
-                const months = window.storageManager.getMonthsByCourse(course.id);
-                totalDue += months.reduce((sum, month) => sum + month.payment, 0);
-            });
+            if (student.enrolledCourses && student.enrolledCourses.length > 0) {
+                student.enrolledCourses.forEach(enrollment => {
+                    const allCourseMonths = window.storageManager.getMonthsByCourse(enrollment.courseId)
+                        .sort((a, b) => (a.monthNumber || 0) - (b.monthNumber || 0));
+                    
+                    if (enrollment.startingMonthId) {
+                        const startingMonth = window.storageManager.getMonthById(enrollment.startingMonthId);
+                        if (startingMonth) {
+                            // Only include months from starting month onwards
+                            const applicableMonths = allCourseMonths.filter(month => 
+                                (month.monthNumber || 0) >= (startingMonth.monthNumber || 0)
+                            );
+                            totalDue += applicableMonths.reduce((sum, month) => sum + month.payment, 0);
+                        }
+                    }
+                });
+            }
 
             const pending = Math.max(0, totalDue - totalPaid);
             totalPending += pending;

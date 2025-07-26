@@ -119,8 +119,8 @@ class FeePaymentManager {
     }
 
     loadPaymentOptions(student) {
-        const courseSelection = document.getElementById('courseSelection');
-        const monthSelection = document.getElementById('monthSelection');
+        const courseSelection = document.querySelector('#studentPaymentInfo #courseSelection');
+        const monthSelection = document.querySelector('#studentPaymentInfo #monthSelection');
         
         if (!courseSelection || !monthSelection) return;
 
@@ -136,13 +136,14 @@ class FeePaymentManager {
         // Display courses
         courseSelection.innerHTML = enrolledCourses.map(enrollment => {
             const course = window.storageManager.getCourseById(enrollment.courseId);
+            if (!course) return '';
             return `
                 <div class="checkbox-item">
                     <input type="checkbox" id="course_${course.id}" value="${course.id}" onchange="feePaymentManager.updateMonthSelection()">
                     <label for="course_${course.id}">${course.name}</label>
                 </div>
             `;
-        }).join('');
+        }).filter(html => html).join('');
 
         // Clear month selection initially
         monthSelection.innerHTML = '<p>Please select courses first</p>';
@@ -154,8 +155,11 @@ class FeePaymentManager {
     }
 
     updateMonthSelection() {
-        const courseSelection = document.querySelector('#studentPaymentInfo #courseSelection');
-        const monthSelection = document.querySelector('#studentPaymentInfo #monthSelection');
+        const studentPaymentInfo = document.getElementById('studentPaymentInfo');
+        if (!studentPaymentInfo) return;
+        
+        const courseSelection = studentPaymentInfo.querySelector('#courseSelection');
+        const monthSelection = studentPaymentInfo.querySelector('#monthSelection');
         
         if (!courseSelection || !monthSelection) return;
 
@@ -173,31 +177,26 @@ class FeePaymentManager {
         selectedCourses.forEach(courseId => {
             // Find the enrollment info for this course
             const enrollment = this.currentStudent.enrolledCourses.find(e => e.courseId === courseId);
-            const startingMonthId = enrollment?.startingMonthId;
+            if (!enrollment || !enrollment.startingMonthId) return;
             
             const allCourseMonths = window.storageManager.getMonthsByCourse(courseId)
                 .sort((a, b) => (a.monthNumber || 0) - (b.monthNumber || 0));
             const course = window.storageManager.getCourseById(courseId);
             
-            // Find starting month index by monthNumber
-            let startIndex = 0;
-            if (startingMonthId) {
-                const startingMonth = window.storageManager.getMonthById(startingMonthId);
-                if (startingMonth) {
-                    startIndex = allCourseMonths.findIndex(m => (m.monthNumber || 0) >= (startingMonth.monthNumber || 0));
-                }
-                if (startIndex === -1) startIndex = 0;
-            }
-            
-            // Only include months from starting month onwards
-            const availableMonths = allCourseMonths.slice(startIndex);
-            
-            availableMonths.forEach(month => {
-                allMonths.push({
-                    ...month,
-                    courseName: course?.name || 'Unknown'
+            // Get starting month and filter months from that point onwards
+            const startingMonth = window.storageManager.getMonthById(enrollment.startingMonthId);
+            if (startingMonth) {
+                const availableMonths = allCourseMonths.filter(month => 
+                    (month.monthNumber || 0) >= (startingMonth.monthNumber || 0)
+                );
+                
+                availableMonths.forEach(month => {
+                    allMonths.push({
+                        ...month,
+                        courseName: course?.name || 'Unknown'
+                    });
                 });
-            });
+            }
         });
         
         // Display months with checkboxes
@@ -215,7 +214,10 @@ class FeePaymentManager {
     }
 
     calculateTotalAmount() {
-        const monthSelection = document.querySelector('#studentPaymentInfo #monthSelection');
+        const studentPaymentInfo = document.getElementById('studentPaymentInfo');
+        if (!studentPaymentInfo) return;
+        
+        const monthSelection = studentPaymentInfo.querySelector('#monthSelection');
         const totalAmountInput = document.getElementById('totalAmount');
         
         if (!monthSelection || !totalAmountInput) return;
@@ -247,14 +249,16 @@ class FeePaymentManager {
             return;
         }
 
-        const courseSelection = document.querySelector('#studentPaymentInfo #courseSelection');
-        const monthSelection = document.querySelector('#studentPaymentInfo #monthSelection');
+        const studentPaymentInfo = document.getElementById('studentPaymentInfo');
+        if (!studentPaymentInfo) return;
+        
+        const courseSelection = studentPaymentInfo.querySelector('#courseSelection');
+        const monthSelection = studentPaymentInfo.querySelector('#monthSelection');
         const totalAmount = parseFloat(document.getElementById('totalAmount').value || 0);
         const paidAmount = parseFloat(document.getElementById('paidAmount').value || 0);
         const reference = document.getElementById('reference').value.trim();
         const receivedBy = document.getElementById('receivedBy').value.trim();
 
-        if (!courseSelection || !monthSelection) return;
 
         const selectedCourses = Array.from(courseSelection.querySelectorAll('input[type="checkbox"]:checked'))
             .map(checkbox => checkbox.value);

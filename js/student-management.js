@@ -293,13 +293,26 @@ class StudentManagementManager {
             const payments = window.storageManager.getPaymentsByStudent(student.id);
             const totalPaid = payments.reduce((sum, payment) => sum + payment.paidAmount, 0);
             
-            // Calculate total due for this student
-            const batchCourses = window.storageManager.getCoursesByBatch(student.batchId);
+            // Calculate total due for this student based on enrolled courses and starting months
             let totalDue = 0;
-            batchCourses.forEach(course => {
-                const months = window.storageManager.getMonthsByCourse(course.id);
-                totalDue += months.reduce((sum, month) => sum + month.payment, 0);
-            });
+            
+            if (student.enrolledCourses && student.enrolledCourses.length > 0) {
+                student.enrolledCourses.forEach(enrollment => {
+                    const allCourseMonths = window.storageManager.getMonthsByCourse(enrollment.courseId)
+                        .sort((a, b) => (a.monthNumber || 0) - (b.monthNumber || 0));
+                    
+                    if (enrollment.startingMonthId) {
+                        const startingMonth = window.storageManager.getMonthById(enrollment.startingMonthId);
+                        if (startingMonth) {
+                            // Only include months from starting month onwards
+                            const applicableMonths = allCourseMonths.filter(month => 
+                                (month.monthNumber || 0) >= (startingMonth.monthNumber || 0)
+                            );
+                            totalDue += applicableMonths.reduce((sum, month) => sum + month.payment, 0);
+                        }
+                    }
+                });
+            }
 
             const paymentStatus = totalPaid >= totalDue ? 'paid' : totalPaid > 0 ? 'partial' : 'unpaid';
             const statusText = totalPaid >= totalDue ? 'Paid' : totalPaid > 0 ? 'Partial' : 'Unpaid';
